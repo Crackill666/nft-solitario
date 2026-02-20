@@ -859,6 +859,13 @@ function setStatusLine(text){
 
       return Math.max(0, sc|0);
     }
+    function computeWinningScoreFromStats(finalMoves, finalTimeSeconds){
+      const base = 1800;
+      const foundationBonus = 52 * 35;
+      const winBonus = 1200;
+      const sc = base - finalTimeSeconds - (finalMoves * 2) + foundationBonus + winBonus;
+      return Math.max(0, sc|0);
+    }
     function updateHud(){
       const t = gameActive ? (nowSec()-t0) : 0;
       elTime.textContent = fmtTime(t);
@@ -1363,16 +1370,20 @@ tableauEl.appendChild(colDiv);
     function checkWin(){
       const totalF=foundations.reduce((a,p)=>a+p.length,0);
       if(totalF===52){
+        const t=nowSec()-t0;
+        const finalScore = computeWinningScoreFromStats(moves, t);
+        score = finalScore;
         gameActive=false;
         stopTimer();
-        updateHud();
-        const t=nowSec()-t0;
+        elTime.textContent = fmtTime(t);
+        elMoves.textContent = String(moves);
+        elScore.textContent = String(finalScore);
         setBoardInteractive(false);
         showWinModal(t);
 // Enviar score al backend (una sola vez)
         if(!scoreSubmitted){
           scoreSubmitted = true;
-          submitScoreToBackend(score, moves, t)
+          submitScoreToBackend(finalScore, moves, t)
             .then(()=>loadLeaderboard().catch(()=>{}))
             .then(()=>showToast("✅ Score enviado y leaderboard actualizado.", "ok"))
             .catch((err)=>{ scoreSubmitted=false; showToast("⚠️ No se pudo enviar el score: "+(err?.message||err), "warn"); });

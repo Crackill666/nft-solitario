@@ -78,6 +78,14 @@ function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds
   ].join("\n");
 }
 
+function computeExpectedWinningScore({ moves, timeSeconds }) {
+  const base = 1800;
+  const foundationBonus = 52 * 35;
+  const winBonus = 1200;
+  const raw = base - timeSeconds - (moves * 2) + foundationBonus + winBonus;
+  return Math.max(0, raw | 0);
+}
+
 async function checkAndBumpRateLimit(env, { key, max, windowMs }) {
   const now = nowMs();
   const windowStart = now - (now % windowMs);
@@ -278,6 +286,16 @@ export default {
 
         if (!nonce) return badRequest("Missing nonce");
         if (!isHexSig(signature)) return badRequest("Invalid signature format");
+        if (moves < 40) return badRequest("Implausible run: moves too low", 422);
+        if (timeSeconds < 30) return badRequest("Implausible run: time too low", 422);
+        if (timeSeconds < Math.floor(moves * 0.35)) {
+          return badRequest("Implausible run: too fast for moves", 422);
+        }
+
+        const expectedScore = computeExpectedWinningScore({ moves, timeSeconds });
+        if (score !== expectedScore) {
+          return badRequest("Invalid score proof", 401);
+        }
 
         const rl = await applyRateLimits(env, request, wallet);
         if (!rl.ok) {

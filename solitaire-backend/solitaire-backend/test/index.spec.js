@@ -16,6 +16,14 @@ function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds
   ].join("\n");
 }
 
+function computeExpectedWinningScore({ moves, timeSeconds }) {
+  const base = 1800;
+  const foundationBonus = 52 * 35;
+  const winBonus = 1200;
+  const raw = base - timeSeconds - (moves * 2) + foundationBonus + winBonus;
+  return Math.max(0, raw | 0);
+}
+
 function newAccount() {
   return privateKeyToAccount(generatePrivateKey());
 }
@@ -103,9 +111,9 @@ describe("nonce + signed submit", () => {
   it("accepts /submit with valid signature and rejects nonce reuse", async () => {
     const account = newAccount();
     const day = "2026-02-20";
-    const score = 1200;
     const moves = 55;
     const timeSeconds = 300;
+    const score = computeExpectedWinningScore({ moves, timeSeconds });
 
     const nonceResp = await requestNonce(account.address);
     const nonce = nonceResp.data.nonce;
@@ -163,9 +171,9 @@ describe("nonce + signed submit", () => {
     const account = newAccount();
     const attacker = newAccount();
     const day = "2026-02-20";
-    const score = 1500;
     const moves = 70;
     const timeSeconds = 450;
+    const score = computeExpectedWinningScore({ moves, timeSeconds });
 
     const nonceResp = await requestNonce(account.address);
     const nonce = nonceResp.data.nonce;
@@ -201,12 +209,94 @@ describe("nonce + signed submit", () => {
     expect(String(data.error || "")).toMatch(/Invalid signature/i);
   });
 
+  it("rejects invalid score proof", async () => {
+    const account = newAccount();
+    const day = "2026-02-20";
+    const moves = 60;
+    const timeSeconds = 500;
+    const score = 999999;
+
+    const nonceResp = await requestNonce(account.address);
+    const nonce = nonceResp.data.nonce;
+
+    const message = buildScoreSignMessage({
+      appName: "NFT Solitario",
+      domain: "nft-solitario",
+      day,
+      score,
+      moves,
+      timeSeconds,
+      nonce,
+    });
+    const signature = await account.signMessage({ message });
+
+    const res = await SELF.fetch("http://example.com/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": TEST_IP },
+      body: JSON.stringify({
+        wallet: account.address,
+        day,
+        score,
+        moves,
+        time_seconds: timeSeconds,
+        nonce,
+        signature,
+      }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(401);
+    expect(data.ok).toBe(false);
+    expect(String(data.error || "")).toMatch(/score proof/i);
+  });
+
+  it("rejects implausible speed vs moves", async () => {
+    const account = newAccount();
+    const day = "2026-02-20";
+    const moves = 100;
+    const timeSeconds = 20;
+    const score = computeExpectedWinningScore({ moves, timeSeconds });
+
+    const nonceResp = await requestNonce(account.address);
+    const nonce = nonceResp.data.nonce;
+
+    const message = buildScoreSignMessage({
+      appName: "NFT Solitario",
+      domain: "nft-solitario",
+      day,
+      score,
+      moves,
+      timeSeconds,
+      nonce,
+    });
+    const signature = await account.signMessage({ message });
+
+    const res = await SELF.fetch("http://example.com/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": TEST_IP },
+      body: JSON.stringify({
+        wallet: account.address,
+        day,
+        score,
+        moves,
+        time_seconds: timeSeconds,
+        nonce,
+        signature,
+      }),
+    });
+    const data = await res.json();
+
+    expect(res.status).toBe(422);
+    expect(data.ok).toBe(false);
+    expect(String(data.error || "")).toMatch(/Implausible run/i);
+  });
+
   it("rejects expired nonce", async () => {
     const account = newAccount();
     const day = "2026-02-20";
-    const score = 999;
     const moves = 50;
     const timeSeconds = 280;
+    const score = computeExpectedWinningScore({ moves, timeSeconds });
 
     const nonceResp = await requestNonce(account.address);
     const nonce = nonceResp.data.nonce;
