@@ -541,6 +541,7 @@
     // === Backend API (Cloudflare Workers + D1) ===
     const API_BASE = "https://solitaire-backend.solitaire-pol.workers.dev";
     const LS_WALLET_KEY = "nftsol_wallet";
+    const LS_GAME_STATE_KEY = "nftsol_game_state_v1";
     const SIGNING_APP_NAME = "NFT Solitario";
     const SIGNING_DOMAIN = "nft-solitario";
 
@@ -549,6 +550,23 @@
     }
     function getCurrentUtcMonth(){
       return new Date().toISOString().slice(0,7); // YYYY-MM
+    }
+    function parseSqliteUtcToLocal(utcText){
+      if(!utcText) return null;
+      const s = String(utcText).trim();
+      const m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2}):(\d{2})$/);
+      if(m){
+        const y = Number(m[1]);
+        const mo = Number(m[2]) - 1;
+        const d = Number(m[3]);
+        const h = Number(m[4]);
+        const mi = Number(m[5]);
+        const se = Number(m[6]);
+        return new Date(Date.UTC(y, mo, d, h, mi, se));
+      }
+      const withZ = /Z$|[+-]\d{2}:?\d{2}$/.test(s) ? s : `${s.replace(" ", "T")}Z`;
+      const dt = new Date(withZ);
+      return Number.isNaN(dt.getTime()) ? null : dt;
     }
     function shortWallet(w){
       if(!w) return "—";
@@ -600,8 +618,8 @@
       if(elLbHint) elLbHint.style.display = w ? "none" : "block";
     }
 
-    function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds, nonce }){
-      return [
+    function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds, nonce, mode }){
+      const lines = [
         `${appName} Score Submission`,
         `Domain: ${domain}`,
         `Day: ${day}`,
@@ -609,10 +627,61 @@
         `Moves: ${moves}`,
         `TimeSeconds: ${timeSeconds}`,
         `Nonce: ${nonce}`
-      ].join("\n");
+      ];
+      if(mode) lines.push(`Mode: ${mode}`);
+      return lines.join("\n");
+    }
+
+    function saveGameSession(){
+      try{
+        const payload = {
+          v: 1,
+          state: cloneState(),
+          undoUsed,
+          scoreSubmitted,
+          pendingWinSubmit
+        };
+        localStorage.setItem(LS_GAME_STATE_KEY, JSON.stringify(payload));
+      }catch(_){}
+    }
+
+    function restoreGameSession(){
+      try{
+        const raw = localStorage.getItem(LS_GAME_STATE_KEY);
+        if(!raw) return false;
+        const payload = JSON.parse(raw);
+        if(!payload || payload.v !== 1 || !payload.state) return false;
+        const s = payload.state;
+        if(!Array.isArray(s.tableau) || s.tableau.length !== 7) return false;
+        if(!Array.isArray(s.foundations) || s.foundations.length !== 4) return false;
+        restoreState(s);
+        undoStack = []; // el historial de undo no se persiste para evitar payload gigante
+        undoUsed = payload.undoUsed || 0;
+        scoreSubmitted = !!payload.scoreSubmitted;
+        pendingWinSubmit = payload.pendingWinSubmit || null;
+        deadlockResolving = false;
+        updateUndoBtn();
+        if(gameActive){
+          setBoardInteractive(true);
+          startTimer();
+        } else {
+          setBoardInteractive(false);
+          stopTimer();
+        }
+        if(pendingWinSubmit && foundations.reduce((a,p)=>a+p.length,0)===52){
+          scoreSubmitted = false;
+          setTimeout(()=>{ submitPendingWinIfAny(); }, 300);
+        }
+        return true;
+      }catch(_){
+        return false;
+      }
     }
 
         async function submitScoreToBackend(finalScore, finalMoves, finalTimeSeconds){
+      if(submitInFlight) return { ok:false, in_flight:true };
+      submitInFlight = true;
+      try{
       const wallet = getWallet();
       if(!wallet){
         showToast("Setea tu <b>Wallet</b> (click arriba) para enviar score.", "warn");
@@ -623,6 +692,8 @@
         showToast("Necesitas una wallet web3 (ej: MetaMask) para firmar el score.", "warn");
         return { ok:false, wallet_provider_missing:true };
       }
+
+      saveGameSession();
 
       const day = getTodayUTC();
       const nonceRes = await fetch(`${API_BASE}/nonce`, {
@@ -653,7 +724,8 @@
         score: finalScore,
         moves: finalMoves,
         timeSeconds: finalTimeSeconds,
-        nonce
+        nonce,
+        mode: gameMode
       });
 
       let signature = "";
@@ -672,6 +744,7 @@
         body: JSON.stringify({
           wallet,
           day,
+          mode: gameMode,
           score: finalScore,
           moves: finalMoves,
           time_seconds: finalTimeSeconds,
@@ -724,7 +797,45 @@
       loadRecent().catch(()=>{});
       loadMe().catch(()=>{});
 
+      pendingWinSubmit = null;
+      saveGameSession();
       return { ok:true, data };
+      } finally {
+        submitInFlight = false;
+      }
+    }
+    async function submitPendingWinIfAny(){
+      if(!pendingWinSubmit) return;
+      const wallet = getWallet();
+      if(wallet){
+        try{
+          const res = await fetch(`${API_BASE}/recent?wallet=${encodeURIComponent(wallet)}&limit=10`);
+          const data = await res.json().catch(()=>({}));
+          const rows = data?.rows || [];
+          const already = rows.some(r =>
+            Number(r.score) === Number(pendingWinSubmit.score) &&
+            Number(r.moves) === Number(pendingWinSubmit.moves) &&
+            Number(r.time_seconds) === Number(pendingWinSubmit.timeSeconds)
+          );
+          if(already){
+            pendingWinSubmit = null;
+            scoreSubmitted = true;
+            saveGameSession();
+            return;
+          }
+        }catch(_){}
+      }
+      try{
+        const out = await submitScoreToBackend(
+          pendingWinSubmit.score,
+          pendingWinSubmit.moves,
+          pendingWinSubmit.timeSeconds
+        );
+        if(out?.ok){
+          scoreSubmitted = true;
+          saveGameSession();
+        }
+      }catch(_){}
     }
 
     async function loadLeaderboard(){
@@ -751,7 +862,8 @@
         const t = (typeof r.time_seconds === "number") ? fmtTime(r.time_seconds) : (r.time_seconds ?? "—");
         const mv = r.moves ?? "—";
         const sc = r.score ?? "—";
-        const at = r.created_at ? new Date(r.created_at).toLocaleString() : "";
+        const atDate = parseSqliteUtcToLocal(r.created_at);
+        const at = atDate ? atDate.toLocaleString() : "";
         return `
           <div class="recentItem">
             <div class="line1">
@@ -905,6 +1017,8 @@ function setStatusLine(text){
     let stock=[], waste=[], foundations=[[],[],[],[]], tableau=[[],[],[],[],[],[],[]];
     let moves=0, score=0, t0=0, timerId=null, gameActive=false;
     let scoreSubmitted=false;
+    let pendingWinSubmit=null;
+    let submitInFlight=false;
 
     // selected:
     // - waste: {from:"waste", card}
@@ -1040,7 +1154,7 @@ function setStatusLine(text){
     function resetAll(){
       stopTimer();
       stock=[]; waste=[]; foundations=[[],[],[],[]]; tableau=[[],[],[],[],[],[],[]];
-      moves=0; score=0; selected=null; undoStack=[]; undoUsed=0; deadlockRescueShufflesUsed=0; deadlockResolving=false; gameActive=false; t0=0; scoreSubmitted=false;
+      moves=0; score=0; selected=null; undoStack=[]; undoUsed=0; deadlockRescueShufflesUsed=0; deadlockResolving=false; gameActive=false; t0=0; scoreSubmitted=false; pendingWinSubmit=null;
       updateHud(); renderAll(); updateUndoBtn();
       showToast("Reset listo. Click en <b>Nueva partida</b>.", "info");
     }
@@ -1057,7 +1171,7 @@ function setStatusLine(text){
         }
       }
       stock = d.slice(idx).map(c=>({ ...c, faceUp:false }));
-      moves=0; score=0; selected=null; undoStack=[]; undoUsed=0; deadlockRescueShufflesUsed=0; deadlockResolving=false; scoreSubmitted=false;
+      moves=0; score=0; selected=null; undoStack=[]; undoUsed=0; deadlockRescueShufflesUsed=0; deadlockResolving=false; scoreSubmitted=false; pendingWinSubmit=null;
       const wm=document.getElementById("winModal"); if(wm) wm.remove();
       const nm=document.getElementById("noMovesModal"); if(nm) nm.remove();
       gameActive=true; t0=nowSec(); setBoardInteractive(true); startTimer(); updateHud(); renderAll(); updateUndoBtn();
@@ -1275,7 +1389,7 @@ tableauEl.appendChild(colDiv);
       }
     }
 
-    function renderAll(){ renderStockWaste(); renderFoundations(); renderTableau(); checkNoMoves(); }
+    function renderAll(){ renderStockWaste(); renderFoundations(); renderTableau(); checkNoMoves(); saveGameSession(); }
 
     function canMoveToFoundation(card, fIndex){
       const suitWanted=["♣","♦","♥","♠"][fIndex];
@@ -1581,10 +1695,17 @@ tableauEl.appendChild(colDiv);
 // Enviar score al backend (una sola vez)
         if(!scoreSubmitted){
           scoreSubmitted = true;
+          pendingWinSubmit = { score: finalScore, moves, timeSeconds: t };
+          saveGameSession();
           submitScoreToBackend(finalScore, moves, t)
-            .then(()=>loadLeaderboard().catch(()=>{}))
-            .then(()=>showToast("✅ Score enviado y leaderboard actualizado.", "ok"))
-            .catch((err)=>{ scoreSubmitted=false; showToast("⚠️ No se pudo enviar el score: "+(err?.message||err), "warn"); });
+            .then((out)=>{
+              if(out?.ok){
+                return loadLeaderboard().catch(()=>{})
+                  .then(()=>showToast("✅ Score enviado y leaderboard actualizado.", "ok"));
+              }
+              return null;
+            })
+            .catch((err)=>{ scoreSubmitted=false; saveGameSession(); showToast("⚠️ No se pudo enviar el score: "+(err?.message||err), "warn"); });
         }
       }
     }
@@ -1704,13 +1825,22 @@ tableauEl.appendChild(colDiv);
       });
     }
 
+    window.addEventListener("pagehide", ()=>{ saveGameSession(); });
+    window.addEventListener("beforeunload", ()=>{ saveGameSession(); });
+    document.addEventListener("visibilitychange", ()=>{
+      if(document.visibilityState !== "visible") saveGameSession();
+    });
+
     // Init UI
     setGameMode(gameMode, { restart:false });
     initWalletFromUrl();
     renderWallet();
     refreshPanels();
-
-    resetAll();
+    if(!restoreGameSession()){
+      resetAll();
+    } else {
+      showToast("Partida restaurada.", "info");
+    }
   
     // ====== MODALS + DETECCION "SIN MOVIMIENTOS" + VICTORIA ======
     function setBoardInteractive(enabled){

@@ -66,8 +66,8 @@ function randomHex(bytes = 16) {
   return [...arr].map(b => b.toString(16).padStart(2, "0")).join("");
 }
 
-function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds, nonce }) {
-  return [
+function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds, nonce, mode }) {
+  const lines = [
     `${appName} Score Submission`,
     `Domain: ${domain}`,
     `Day: ${day}`,
@@ -75,15 +75,23 @@ function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds
     `Moves: ${moves}`,
     `TimeSeconds: ${timeSeconds}`,
     `Nonce: ${nonce}`,
-  ].join("\n");
+  ];
+  if (mode) lines.push(`Mode: ${mode}`);
+  return lines.join("\n");
 }
 
-function computeExpectedWinningScore({ moves, timeSeconds }) {
+function scoreMultiplierForMode(mode) {
+  if (mode === "easy") return 0.65;
+  return 1;
+}
+
+function computeExpectedWinningScore({ moves, timeSeconds, mode }) {
   const base = 1800;
   const foundationBonus = 52 * 35;
   const winBonus = 1200;
   const raw = base - timeSeconds - (moves * 2) + foundationBonus + winBonus;
-  return Math.max(0, raw | 0);
+  const scaled = raw * scoreMultiplierForMode(mode);
+  return Math.max(0, scaled | 0);
 }
 
 async function checkAndBumpRateLimit(env, { key, max, windowMs }) {
@@ -277,6 +285,8 @@ export default {
 
         const day = String(body.day || "").trim();
         if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return badRequest("Invalid day (YYYY-MM-DD)");
+        const mode = String(body.mode || "normal").trim().toLowerCase();
+        if (mode !== "normal" && mode !== "easy") return badRequest("Invalid mode");
 
         const score = clampInt(Number(body.score || 0), 0, 1_000_000_000);
         const moves = clampInt(Number(body.moves || 0), 0, 1_000_000_000);
@@ -292,7 +302,7 @@ export default {
           return badRequest("Implausible run: too fast for moves", 422);
         }
 
-        const expectedScore = computeExpectedWinningScore({ moves, timeSeconds });
+        const expectedScore = computeExpectedWinningScore({ moves, timeSeconds, mode });
         if (score !== expectedScore) {
           return badRequest("Invalid score proof", 401);
         }
@@ -329,6 +339,7 @@ export default {
           moves,
           timeSeconds,
           nonce,
+          mode,
         });
 
         let recovered = "";
@@ -350,8 +361,21 @@ export default {
 
         await env.DB.prepare(
           `INSERT INTO score_runs (wallet, day, score, moves, time_seconds, ip_hash)
-           VALUES (?, ?, ?, ?, ?, ?)`
-        ).bind(wallet, day, score, moves, timeSeconds, ipHashHex).run();
+           SELECT ?, ?, ?, ?, ?, ?
+           WHERE NOT EXISTS (
+             SELECT 1
+             FROM score_runs
+             WHERE wallet = ?
+               AND day = ?
+               AND score = ?
+               AND moves = ?
+               AND time_seconds = ?
+               AND created_at >= datetime('now', '-30 minutes')
+           )`
+        ).bind(
+          wallet, day, score, moves, timeSeconds, ipHashHex,
+          wallet, day, score, moves, timeSeconds
+        ).run();
 
         const up = await env.DB.prepare(
           `INSERT INTO scores (wallet, day, score, moves, time_seconds)

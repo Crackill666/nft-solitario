@@ -4,8 +4,8 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 
 const TEST_IP = "1.2.3.4";
 
-function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds, nonce }) {
-  return [
+function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds, nonce, mode }) {
+  const lines = [
     `${appName} Score Submission`,
     `Domain: ${domain}`,
     `Day: ${day}`,
@@ -13,7 +13,9 @@ function buildScoreSignMessage({ appName, domain, day, score, moves, timeSeconds
     `Moves: ${moves}`,
     `TimeSeconds: ${timeSeconds}`,
     `Nonce: ${nonce}`,
-  ].join("\n");
+  ];
+  if (mode) lines.push(`Mode: ${mode}`);
+  return lines.join("\n");
 }
 
 function computeExpectedWinningScore({ moves, timeSeconds }) {
@@ -111,6 +113,7 @@ describe("nonce + signed submit", () => {
   it("accepts /submit with valid signature and rejects nonce reuse", async () => {
     const account = newAccount();
     const day = "2026-02-20";
+    const mode = "normal";
     const moves = 55;
     const timeSeconds = 300;
     const score = computeExpectedWinningScore({ moves, timeSeconds });
@@ -126,6 +129,7 @@ describe("nonce + signed submit", () => {
       moves,
       timeSeconds,
       nonce,
+      mode,
     });
     const signature = await account.signMessage({ message });
 
@@ -135,6 +139,7 @@ describe("nonce + signed submit", () => {
       body: JSON.stringify({
         wallet: account.address,
         day,
+        mode,
         score,
         moves,
         time_seconds: timeSeconds,

@@ -1,8 +1,8 @@
-# Estado del proyecto (actualizado: 2026-02-20)
+﻿# Estado del proyecto (actualizado: 2026-02-21)
 
-## Backend
-- API en Cloudflare Worker (`solitaire-backend`).
-- Base de datos en Cloudflare D1 (`solitaire_db`) sincronizada con `schema.sql`.
+## Backend (Cloudflare Worker + D1)
+- Worker: `solitaire-backend`
+- DB: `solitaire_db` (D1)
 - Endpoints activos:
   - `POST /nonce`
   - `POST /submit`
@@ -11,53 +11,57 @@
   - `GET /recent`
   - `GET /health`
 
-## Anticheat (estado actual)
-- Nonce por wallet con expiración.
-- Nonce de un solo uso (anti-replay).
-- Firma obligatoria de payload (`wallet + day + score + moves + time + nonce`).
-- Scope de nonce por IP hash.
-- Rate limit por IP y por wallet.
-- Validación de score en backend (no se confía el score del cliente):
-  - Fórmula exigida: `score = max(0, 4820 - time_seconds - 2*moves)`.
-- Validaciones de plausibilidad:
-  - `moves >= 40`
-  - `time_seconds >= 30`
-  - `time_seconds >= floor(moves * 0.35)`
+## Cambios backend hechos en esta sesion
+- Se mantuvo anticheat base:
+  - nonce por wallet + expiracion
+  - nonce de un solo uso (anti-replay)
+  - scope de nonce por IP hash
+  - rate limit por IP y wallet
+  - validaciones de plausibilidad (`moves`, `time_seconds`)
+- Se corrigio validacion de score por modo:
+  - `normal`: multiplicador `1.0`
+  - `easy`: multiplicador `0.65`
+- La firma ahora incluye `Mode` para mantener consistencia cliente/backend.
+- Se agrego deduplicacion de `score_runs` (misma wallet/day/score/moves/time en ventana de 30 min).
+- Deploy backend realizado en produccion (Worker actualizado).
 
-## Frontend
-- Archivo principal renombrado a `index.html`.
-- El envío de score firma con wallet y manda `/submit`.
-- Ajustado `checkWin()` para calcular score final consistente con backend antes de enviar.
-- `API_BASE` actual:
-  - `https://solitaire-backend.solitaire-pol.workers.dev`
+## Frontend (`index.html`) - estado actual
+- Visual:
+  - look de mesa verde mas realista
+  - fondo del tablero con `assets/cards/mesa.jpg`
+  - logo `MN` en header y tambien en dorso de cartas
+- Cartas:
+  - assets reales SVG locales en `assets/cards/` (52 cartas)
+  - ajuste responsive para que no se corten en mobile
+- Jugabilidad:
+  - movimiento `foundation -> tableau` habilitado (click y drag)
+  - `Undo` infinito por historial
+  - modos `Normal` y `Facil`
+  - en `Facil` se aplica score menor (`0.65x`) y reglas mas permisivas
+  - rescate anti-bloqueo activo (rebarajado/revelado segun modo)
+- Persistencia movil / MetaMask:
+  - guardado de estado en `localStorage`
+  - restauracion al volver de app-switch
+  - manejo de `pendingWinSubmit` para reintento de envio
 
-## Tests y validación
-- Tests backend: `7/7` pasando localmente.
-- Se validó en producción:
-  - score falso -> rechazado (`401 Invalid score proof`)
-  - score válido -> aceptado (`200 ok`)
-  - replay mismo nonce/firma -> rechazado (`401 Nonce already used`)
+## Estado de DB
+- Se hizo reset completo de datos (manteniendo esquema) durante esta sesion.
+- Luego se validaron envios reales de partidas.
 
-## Script útil agregado
-- Archivo: `solitaire-backend/solitaire-backend/scripts/submit-test-score.js`
-- Comando npm: `npm run test:submit`
-- Permite:
-  - generar payload válido automático,
-  - probar replay (`--replay`),
-  - forzar valores (`--score`, `--moves`, `--time`, `--day`, `--api`).
+## Tests
+- Backend tests locales: `7/7` pasando (`npm test -- --run`).
 
-## Comandos de referencia
-- Tests:
+## Comandos utiles
+- Test backend:
   - `npm test -- --run`
-- Envío válido automático:
-  - `npm run test:submit -- --api https://solitaire-backend.solitaire-pol.workers.dev`
-- Prueba replay:
-  - `npm run test:submit -- --api https://solitaire-backend.solitaire-pol.workers.dev --replay`
-- Prueba score falso:
-  - `npm run test:submit -- --api https://solitaire-backend.solitaire-pol.workers.dev --score 999999 --moves 80 --time 500`
+- Deploy backend:
+  - `npx wrangler deploy`
+- Verificar tablas D1 remotas:
+  - `npx wrangler d1 execute solitaire_db --remote --command "SELECT COUNT(*) FROM scores;"`
 
-## Pendientes para próxima sesión
-1. Cerrar CORS en producción (allowlist de dominios reales; sacar `*`).
-2. Publicar frontend en GitHub Pages (repo + Pages activo + URL para testers).
-3. Definir monitoreo básico de intentos rechazados (`invalid signature`, `invalid score proof`, rate limit).
-4. Evaluar fase 2 anticheat (partida/challenge emitida por servidor para mayor garantía de run real).
+## Pendientes para proxima sesion
+1. Verificar que el flujo de firma/reintento en mobile quede 100% estable en todos los navegadores/wallets.
+2. Definir estrategia final de dificultad (si mantener rescates en normal o solo en facil).
+3. Cerrar CORS en produccion (allowlist real en lugar de `*`).
+4. Mejorar UX del estado de envio de score (pendiente/enviado/fallido).
+5. Opcional: migrar frontend a Vite para separar codigo y manejo de assets.
