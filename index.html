@@ -14,7 +14,7 @@
       --warn:#ffcc66;
       --bad:#ff5c7a;
       --cardW:94px;
-      --cardH:134px;
+      --cardH:136px;
       --radius:14px;
       --pileGap:26px;
     }
@@ -39,50 +39,46 @@
       background: linear-gradient(180deg, rgba(0,0,0,.20), rgba(0,0,0,.10));
       border:1px solid rgba(255,255,255,.18);
       border-radius: var(--radius);
-      padding:14px;
+      padding:10px 12px;
       backdrop-filter: blur(10px);
     }
-    .brand{ display:flex; gap:12px; align-items:center; user-select:none; }
+    .brand{ display:flex; gap:10px; align-items:center; user-select:none; }
     .logo{
-      width:44px;height:44px;border-radius:12px;
-      background: radial-gradient(circle at 30% 30%, rgba(74,163,255,.95), rgba(74,163,255,.15) 55%, rgba(255,255,255,.08) 70%),
-                  linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,0));
+      width:78px;height:78px;border-radius:18px;
+      background:
+        url("assets/cards/Logo2MN.png") center/86% no-repeat,
+        radial-gradient(circle at 30% 30%, rgba(74,163,255,.95), rgba(74,163,255,.15) 55%, rgba(255,255,255,.08) 70%),
+        linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,0));
       border:1px solid rgba(255,255,255,.18);
       box-shadow: 0 8px 26px rgba(0,0,0,.35);
       position:relative;
     }
-    .logo:after{
-      content:"♠";
-      position:absolute; inset:0;
-      display:flex; align-items:center; justify-content:center;
-      font-size:22px; color:rgba(255,255,255,.92);
-      text-shadow:0 4px 10px rgba(0,0,0,.35);
-    }
     .title{ display:flex; flex-direction:column; gap:2px; }
-    .title b{font-size:15px; letter-spacing:.2px}
+    .title b{font-size:12px; letter-spacing:.2px}
     .title small{color:var(--muted)}
-    .hud{ display:flex; gap:10px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
+    .hud{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:flex-end; }
     .pill{
       background: rgba(255,255,255,.06);
       border: 1px solid rgba(255,255,255,.12);
-      padding:8px 10px;
+      padding:6px 9px;
       border-radius: 999px;
       display:flex; gap:8px; align-items:center;
-      min-height:36px;
+      min-height:32px;
     }
-    .pill .k{color:var(--muted); font-size:12px}
-    .pill .v{font-weight:700; font-variant-numeric: tabular-nums}
+    .pill .k{color:var(--muted); font-size:11px}
+    .pill .v{font-weight:700; font-variant-numeric: tabular-nums; font-size:13px}
     .btn{
       cursor:pointer;
       border:none;
       border-radius: 12px;
-      padding:10px 12px;
+      padding:7px 10px;
       color:var(--text);
       background: rgba(255,255,255,.08);
       border:1px solid rgba(255,255,255,.14);
       transition: transform .06s ease, background .15s ease, border-color .15s ease;
       user-select:none;
-      min-height:38px;
+      min-height:32px;
+      font-size:12px;
     }
     .btn:hover{ background: rgba(255,255,255,.11); border-color: rgba(255,255,255,.22); }
     .btn:active{ transform: translateY(1px); }
@@ -95,13 +91,13 @@
     .modeWrap{
       display:flex;
       align-items:center;
-      gap:8px;
-      padding:6px 10px;
+      gap:7px;
+      padding:5px 8px;
       border-radius: 10px;
       background: rgba(0,0,0,.18);
       border:1px solid rgba(255,255,255,.14);
-      min-height:38px;
-      font-size:12px;
+      min-height:32px;
+      font-size:11px;
       color:var(--muted);
     }
     .modeSel{
@@ -109,8 +105,8 @@
       border:1px solid rgba(255,255,255,.2);
       background: rgba(255,255,255,.1);
       color: var(--text);
-      padding:4px 8px;
-      font-size:13px;
+      padding:3px 7px;
+      font-size:12px;
       outline:none;
       cursor:pointer;
     }
@@ -128,10 +124,8 @@
     }
     .gameBoard{
       background:
-        radial-gradient(900px 420px at 18% 12%, rgba(255,255,255,.11), rgba(255,255,255,0) 52%),
-        radial-gradient(780px 360px at 88% 82%, rgba(255,255,255,.07), rgba(255,255,255,0) 60%),
-        repeating-radial-gradient(circle at 50% 50%, rgba(255,255,255,.012) 0 2px, rgba(0,0,0,.018) 2px 4px),
-        linear-gradient(180deg, #1d5a3b 0%, #154a31 50%, #103b27 100%);
+        linear-gradient(180deg, rgba(8,20,14,.26), rgba(8,20,14,.34)),
+        url("assets/cards/mesa.jpg") center/cover no-repeat;
       border-color: rgba(196,250,214,.35);
       box-shadow: inset 0 1px 0 rgba(255,255,255,.2), inset 0 -18px 42px rgba(0,0,0,.16);
     }
@@ -198,13 +192,26 @@
       user-select:none;
       touch-action: none;
     }
+    .card .cardArt{
+      width:100%;
+      height:100%;
+      object-fit: contain;
+      object-position: center;
+      background:#fff;
+      border-radius: 8px;
+      display:block;
+      pointer-events:none;
+      user-select:none;
+      image-rendering:auto;
+    }
     .card.faceDown{
       background-image:
-        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 260'%3E%3Cdefs%3E%3Cpattern id='p' width='20' height='20' patternUnits='userSpaceOnUse'%3E%3Cpath d='M0 10h20M10 0v20' stroke='%2396d5ff' stroke-opacity='.2'/%3E%3Ccircle cx='10' cy='10' r='3' fill='%23e7f5ff' fill-opacity='.25'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='180' height='260' rx='12' fill='%232f66cc'/%3E%3Crect x='10' y='10' width='160' height='240' rx='9' fill='url(%23p)'/%3E%3Crect x='22' y='22' width='136' height='216' rx='8' fill='none' stroke='%23d8efff' stroke-opacity='.8' stroke-width='2'/%3E%3Cpath d='M90 52c12 0 20 8 20 18 0 7-4 13-10 16 6 3 10 9 10 16 0 10-8 18-20 18s-20-8-20-18c0-7 4-13 10-16-6-3-10-9-10-16 0-10 8-18 20-18z' fill='%23cde8ff' fill-opacity='.55'/%3E%3C/svg%3E"),
+        url("assets/cards/Logo2MN.png"),
+        url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 260'%3E%3Cdefs%3E%3Cpattern id='p' width='20' height='20' patternUnits='userSpaceOnUse'%3E%3Cpath d='M0 10h20M10 0v20' stroke='%2396d5ff' stroke-opacity='.18'/%3E%3C/pattern%3E%3C/defs%3E%3Crect width='180' height='260' rx='12' fill='%232f66cc'/%3E%3Crect x='10' y='10' width='160' height='240' rx='9' fill='url(%23p)'/%3E%3Crect x='22' y='22' width='136' height='216' rx='8' fill='none' stroke='%23d8efff' stroke-opacity='.8' stroke-width='2'/%3E%3C/svg%3E"),
         radial-gradient(circle at 32% 24%, rgba(149,216,255,.92), rgba(66,125,223,.9) 54%, rgba(44,90,184,.93));
-      background-size: cover, cover;
-      background-position: center center, center center;
-      background-repeat: no-repeat, no-repeat;
+      background-size: 52% auto, cover, cover;
+      background-position: center center, center center, center center;
+      background-repeat: no-repeat, no-repeat, no-repeat;
       color: rgba(255,255,255,.9);
       border: 2px solid rgba(198,231,255,.72);
       box-shadow: 0 4px 11px rgba(0,0,0,.24);
@@ -239,7 +246,7 @@
     @media (max-width: 900px){
       :root{
         --cardW: clamp(38px, calc((100vw - 52px) / 7), 76px);
-        --cardH: clamp(56px, calc(var(--cardW) * 1.42), 108px);
+        --cardH: clamp(56px, calc(var(--cardW) * 1.443), 108px);
         --pileGap: clamp(14px, calc(var(--cardW) * .32), 24px);
       }
       .app{ width:100%; }
@@ -252,7 +259,7 @@
     @media (max-width: 520px){
       :root{
         --cardW: clamp(34px, calc((100vw - 30px) / 7), 56px);
-        --cardH: clamp(50px, calc(var(--cardW) * 1.42), 82px);
+        --cardH: clamp(50px, calc(var(--cardW) * 1.443), 82px);
         --pileGap: clamp(12px, calc(var(--cardW) * .34), 18px);
       }
       .topRow{ grid-template-columns: 1fr; gap:10px; }
@@ -403,8 +410,7 @@
       <div class="brand">
         <div class="logo" title="NFT Solitaire"></div>
         <div class="title">
-          <b>NFT Solitaire — MVP (pila múltiple)</b>
-          <small>Ahora podés mover <b>stacks</b> del tableau (ej: 7-6 sobre 8-9-10)</small>
+          <b>NFT Solitarie</b>
         </div>
       </div>
 
@@ -915,6 +921,7 @@ function setStatusLine(text){
     const SUITS=["♣","♦","♥","♠"];
     const SUIT_COLOR={ "♣":"black","♠":"black","♦":"red","♥":"red" };
     const RANKS=[null,"A","2","3","4","5","6","7","8","9","10","J","Q","K"];
+    const CARD_ASSET_BASE = "assets/cards";
     elDeckName.textContent = DECK.name;
 
     function showToast(msg, kind="info"){
@@ -933,6 +940,17 @@ function setStatusLine(text){
     function nowSec(){ return Math.floor(Date.now()/1000); }
     function modeCfg(){ return MODE_SETTINGS[gameMode] || MODE_SETTINGS.normal; }
     function modeScoreMultiplier(){ return modeCfg().scoreMultiplier || 1; }
+    function cardAssetFilename(card){
+      const suitMap = { "♣":"clubs", "♦":"diamonds", "♥":"hearts", "♠":"spades" };
+      const rankMap = {
+        1:"ace", 2:"2", 3:"3", 4:"4", 5:"5", 6:"6", 7:"7", 8:"8", 9:"9", 10:"10",
+        11:"jack", 12:"queen", 13:"king"
+      };
+      const suit = suitMap[card.suit];
+      const rank = rankMap[card.rank];
+      if(!suit || !rank) return null;
+      return `${rank}_of_${suit}.svg`;
+    }
     function shuffle(arr){
       for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; }
       return arr;
@@ -1051,9 +1069,14 @@ function setStatusLine(text){
       const div=document.createElement("div");
       div.className="card "+(card.faceUp ? SUIT_COLOR[card.suit] : "faceDown");
       if(card.faceUp){
-        div.innerHTML = `<div class="top"><span>${RANKS[card.rank]}</span><span>${card.suit}</span></div>
-                         <div class="mid">${card.suit}</div>
-                         <div class="bot"><span>${RANKS[card.rank]}</span><span>${card.suit}</span></div>`;
+        const file = cardAssetFilename(card);
+        if(file){
+          div.innerHTML = `<img class="cardArt" src="${CARD_ASSET_BASE}/${file}" alt="${RANKS[card.rank]}${card.suit}" draggable="false" />`;
+        } else {
+          div.innerHTML = `<div class="top"><span>${RANKS[card.rank]}</span><span>${card.suit}</span></div>
+                           <div class="mid">${card.suit}</div>
+                           <div class="bot"><span>${RANKS[card.rank]}</span><span>${card.suit}</span></div>`;
+        }
       } else {
         div.innerHTML = `<div class="top"></div><div class="mid"></div><div class="bot"></div>`;
       }
